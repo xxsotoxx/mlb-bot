@@ -64,6 +64,45 @@ class LineHistoryDB(Base):
     consensus_pct = Column(Float, nullable=True)
 
 
+class GameResultDB(Base):
+    """Modelo para guardar resultados de partidos y comparaciones"""
+    __tablename__ = "game_results"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    game_id = Column(Integer, unique=True, index=True)
+    game_date = Column(Date, index=True)
+    
+    home_team = Column(String(100))
+    away_team = Column(String(100))
+    
+    predicted_home_score = Column(Float)
+    predicted_away_score = Column(Float)
+    predicted_total = Column(Float)
+    predicted_favorite = Column(String(100))
+    over_line = Column(Float)
+    over_probability = Column(Float)
+    
+    actual_home_score = Column(Integer)
+    actual_away_score = Column(Integer)
+    actual_total = Column(Integer)
+    actual_winner = Column(String(100))
+    
+    ml_correct = Column(Boolean, default=False)
+    ou_correct = Column(Boolean, default=False)
+    rl_correct = Column(Boolean, default=False)
+    
+    score_error = Column(Integer, default=0)
+    total_error = Column(Float, default=0)
+    
+    ml_prediction = Column(String(100))
+    ml_actual = Column(String(100))
+    ou_prediction = Column(String(10))
+    ou_actual = Column(String(10))
+    
+    result_fetched_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 def init_db():
     """Inicializa la base de datos"""
     Base.metadata.create_all(bind=engine)
@@ -251,4 +290,67 @@ def detect_line_movement(db, game_id: str, threshold: float = 0.5) -> dict:
         "has_movement": len(alerts) > 0,
         "alerts": alerts,
         "total_records": len(history)
+    }
+
+
+def save_game_result(db, result_data: dict):
+    """Guarda el resultado de un partido con comparación de predicción"""
+    existing = db.query(GameResultDB).filter(
+        GameResultDB.game_id == result_data.get("game_id")
+    ).first()
+    
+    if existing:
+        for key, value in result_data.items():
+            setattr(existing, key, value)
+        db.commit()
+        return existing
+    else:
+        result = GameResultDB(**result_data)
+        db.add(result)
+        db.commit()
+        return result
+
+
+def get_game_results(db, days: int = 60):
+    """Obtiene resultados de los últimos N días"""
+    from datetime import timedelta
+    cutoff_date = date.today() - timedelta(days=days)
+    
+    return db.query(GameResultDB).filter(
+        GameResultDB.game_date >= cutoff_date
+    ).order_by(GameResultDB.game_date.desc()).all()
+
+
+def get_accuracy_stats(db, days: int = 60):
+    """Calcula estadísticas de precisión del modelo"""
+    results = get_game_results(db, days)
+    
+    if not results:
+        return {
+            "total_games": 0,
+            "ml_accuracy": 0.0,
+            "ou_accuracy": 0.0,
+            "rl_accuracy": 0.0,
+            "avg_score_error": 0.0,
+            "avg_total_error": 0.0
+        }
+    
+    total = len(results)
+    ml_correct = sum(1 for r in results if r.ml_correct)
+    ou_correct = sum(1 for r in results if r.ou_correct)
+    rl_correct = sum(1 for r in results if r.rl_correct)
+    total_score_errors = sum(r.score_error or 0 for r in results)
+    total_errors = sum(r.total_error or 0 for r in results)
+    
+    return {
+        "total_games": total,
+        "ml_accuracy": round(ml_correct / total * 100, 1) if total > 0 else 0.0,
+        "ml_correct": ml_correct,
+        "ou_accuracy": round(ou_correct / total * 100, 1) if total > 0 else 0.0,
+        "ou_correct": ou_correct,
+        "rl_accuracy": round(rl_correct / total * 100, 1) if total > 0 else 0.0,
+        "rl_correct": rl_correct,
+        "avg_score_error": round(total_score_errors / total, 2) if total > 0 else 0.0,
+        "avg_total_error": round(total_errors / total, 2) if total > 0 else 0.0,
+        "days_analyzed": days
     }

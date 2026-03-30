@@ -9,6 +9,7 @@ import logging
 
 from app.models.database import init_db
 from app.routes import games, predictions, stats
+from app.services.scheduler import start_scheduler, stop_scheduler
 
 logging.basicConfig(
     level=logging.INFO,
@@ -42,10 +43,22 @@ templates = Jinja2Templates(directory="app/templates")
 
 @app.on_event("startup")
 async def startup_event():
-    """Inicializa la base de datos al arrancar"""
+    """Inicializa la base de datos y scheduler al arrancar"""
     logger.info("Inicializando base de datos...")
     init_db()
+    
+    logger.info("Iniciando scheduler de jobs automáticos...")
+    start_scheduler()
+    
     logger.info("MLB Betting Bot iniciado correctamente")
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Detiene el scheduler al apagar"""
+    logger.info("Deteniendo scheduler...")
+    stop_scheduler()
+    logger.info("MLB Betting Bot apagado correctamente")
 
 
 @app.get("/api/health")
