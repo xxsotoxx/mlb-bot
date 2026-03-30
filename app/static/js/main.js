@@ -120,16 +120,11 @@ function createGameCard(game) {
     const mlConfidence = mlData.confidence || 'BAJA';
     const mlMatch = mlData.prediction_match !== false;
     
-    const recommendedBookmaker = casinoLine.bookmaker || 'DraftKings';
-    
     const recommendedBookmaker = casinoLine.recommended_bookmaker || 'Promedio de 4 bookmakers';
     
-    const consensusLine = casinoLine.consensus_line || casinoOULine;
+    const consensusLine = casinoLine.consensus_line || 8;
     const consensusCount = casinoLine.consensus_bookmaker_count || 4;
     const consensusTotal = casinoLine.consensus_total_bookmakers || 4;
-    
-    const casinoOULine = ouData.casino_line || consensusLine || game.over_line || 8;
-    const ouDiff = predictedTotal - casinoOULine;
     
     return `
         <div class="card game-card mb-4">
