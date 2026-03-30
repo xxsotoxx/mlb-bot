@@ -7,7 +7,7 @@ echo ""
 
 # Configuracion
 APP_DIR="/opt/mlb-bot"
-SERVICE_NAME="mlb-bot"
+PROJECT_NAME="mlb-bot"
 
 # Colores
 GREEN='\033[0;32m'
@@ -52,15 +52,13 @@ fi
 
 log_info "Cambios obtenidos exitosamente"
 
-# Reconstruir y actualizar servicios
-log_info "Reconstruyendo servicios con Docker Swarm..."
-
-# Actualizar la imagen
+# Reconstruir imagen
+log_info "Reconstruyendo imagen Docker..."
 docker build -t mlb-bot:latest .
 
 # Actualizar el stack
 log_info "Actualizando stack..."
-docker stack deploy -c docker-compose.yml $SERVICE_NAME
+docker stack deploy -c docker-compose.yml $PROJECT_NAME
 
 # Esperar a que se actualicen
 log_info "Esperando actualización..."
@@ -68,7 +66,7 @@ sleep 10
 
 # Ver logs
 log_info "Logs recientes del MLB Bot:"
-docker service logs ${SERVICE_NAME}_mlb-bot --tail 15
+docker service logs ${PROJECT_NAME}_mlb-bot --tail 15
 
 echo ""
 log_info "=============================================="
@@ -76,5 +74,5 @@ log_info "  Update completado!"
 log_info "=============================================="
 echo ""
 echo "Comandos útiles:"
-echo "  Ver logs: docker service logs ${SERVICE_NAME}_mlb-bot -f"
+echo "  Ver logs: docker service logs ${PROJECT_NAME}_mlb-bot -f"
 echo "  Ver estado: ./status.sh"

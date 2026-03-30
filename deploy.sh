@@ -7,7 +7,7 @@ echo ""
 
 # Configuracion
 APP_DIR="/opt/mlb-bot"
-SERVICE_NAME="mlb-bot"
+PROJECT_NAME="mlb-bot"
 PORT=8000
 
 # Colores
@@ -40,18 +40,6 @@ if ! command -v docker &> /dev/null; then
     exit 1
 fi
 
-# Verificar Docker Compose
-if ! docker compose version &> /dev/null; then
-    log_error "Docker Compose no está instalado"
-    exit 1
-fi
-
-# Verificar Swarm
-if [ ! -f /var/lib/docker/swarm/state.json ]; then
-    log_info "Inicializando Docker Swarm..."
-    docker swarm init
-fi
-
 # Navegar al directorio
 cd $APP_DIR || {
     log_error "No se encontró el directorio $APP_DIR"
@@ -81,28 +69,39 @@ if [ ! -f "docker-compose.yml" ]; then
     exit 1
 fi
 
-if [ ! -f "requirements.txt" ]; then
-    log_error "No se encontró requirements.txt"
+if [ ! -f "Dockerfile" ]; then
+    log_error "No se encontró Dockerfile"
     exit 1
+fi
+
+# Construir imagen Docker localmente
+log_info "Construyendo imagen Docker..."
+docker build -t mlb-bot:latest .
+
+# Verificar que la imagen se construyó correctamente
+if ! docker images | grep -q mlb-bot; then
+    log_error "Error al construir la imagen Docker"
+    exit 1
+fi
+
+# Inicializar Swarm si no existe
+if [ ! -f /var/lib/docker/swarm/state.json ]; then
+    log_info "Inicializando Docker Swarm..."
+    docker swarm init
 fi
 
 # Detener servicios anteriores si existen
 log_info "Deteniendo servicios anteriores..."
-docker stack rm $SERVICE_NAME 2>/dev/null
+docker stack rm $PROJECT_NAME 2>/dev/null
 sleep 5
-
-# Remover servicios antiguos
-log_info "Limpiando servicios antiguos..."
-docker service ls | grep $SERVICE_NAME && docker stack rm $SERVICE_NAME 2>/dev/null || true
-sleep 3
 
 # Deploy con Docker Swarm
 log_info "Haciendo deploy con Docker Swarm..."
-docker stack deploy -c docker-compose.yml $SERVICE_NAME
+docker stack deploy -c docker-compose.yml $PROJECT_NAME
 
 # Esperar a que arranquen los servicios
 log_info "Esperando a que arranquen los servicios..."
-sleep 10
+sleep 15
 
 # Verificar estado
 log_info "Verificando estado de servicios..."
@@ -110,10 +109,10 @@ docker service ls
 
 # Ver logs
 log_info "Logs del MLB Bot:"
-docker service logs ${SERVICE_NAME}_mlb-bot --tail 20
+docker service logs ${PROJECT_NAME}_mlb-bot --tail 30
 
 # Verificar si está corriendo
-if docker service ls | grep -q ${SERVICE_NAME}_mlb-bot; then
+if docker service ls | grep -q ${PROJECT_NAME}_mlb-bot; then
     echo ""
     log_info "=============================================="
     log_info "  Deploy completado exitosamente!"
@@ -124,11 +123,11 @@ if docker service ls | grep -q ${SERVICE_NAME}_mlb-bot; then
     echo "  http://$(curl -s ifconfig.me):$PORT"
     echo ""
     echo "Comandos útiles:"
-    echo "  docker service logs ${SERVICE_NAME}_mlb-bot -f"
+    echo "  docker service logs ${PROJECT_NAME}_mlb-bot -f"
     echo "  ./status.sh"
     echo "  ./update.sh"
 else
     log_error "El deploy falló. Verifica los logs."
-    docker service logs ${SERVICE_NAME}_mlb-bot --tail 50
+    docker service logs ${PROJECT_NAME}_mlb-bot --tail 50
     exit 1
 fi
