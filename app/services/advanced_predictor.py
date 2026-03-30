@@ -161,10 +161,15 @@ class AdvancedSabermetricPredictor:
             if not stats_data or "stats" not in stats_data:
                 return self._default_pitcher_stats()
             
-            splits = stats_data.get("stats", [{}])[0].get("splits", [])
-            if not splits:
+            stats_list = stats_data.get("stats", [])
+            if not stats_list:
+                logger.warning(f"No stats list for pitcher {pitcher_id}, trying career")
                 stats_data = await mlb_client.get_player_stats(pitcher_id, "pitching", use_career=True)
-                splits = stats_data.get("stats", [{}])[0].get("splits", []) if stats_data else []
+                stats_list = stats_data.get("stats", []) if stats_data else []
+            
+            splits = []
+            if stats_list and len(stats_list) > 0:
+                splits = stats_list[0].get("splits", [])
             
             if not splits:
                 return self._default_pitcher_stats()
