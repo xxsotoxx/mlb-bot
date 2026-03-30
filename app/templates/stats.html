@@ -1,0 +1,297 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12 text-center">
+        <h1 style="color: #ffffff;"><i class="bi bi-graph-up"></i> Análisis y Estadísticas</h1>
+        <p class="text-muted">Seguimiento de rendimiento del modelo predictor</p>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3 class="text-primary" id="total-games">0</h3>
+                <p class="mb-0" style="color: #ffffff;">Partidos Analizados</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3 class="text-success" id="runs-accuracy">0%</h3>
+                <p class="mb-0" style="color: #ffffff;">% Acierto Carreras</p>
+                <small style="color: #d1d5da;">(dentro de ±1 run)</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3 class="text-warning" id="ml-accuracy">0%</h3>
+                <p class="mb-0" style="color: #ffffff;">% Acierto Money Line</p>
+                <small style="color: #d1d5da;">(ganador correcto)</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3 class="text-info" id="ou-accuracy">0%</h3>
+                <p class="mb-0" style="color: #ffffff;">% Acierto O/U</p>
+                <small style="color: #d1d5da;">(línea total)</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3 class="text-danger" id="avg-diff">0</h3>
+                <p class="mb-0" style="color: #ffffff;">Diferencia Promedio</p>
+                <small style="color: #d1d5da;">runs de diferencia</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3 id="best-team">-</h3>
+                <p class="mb-0" style="color: #ffffff;">Mejor Equipo ML</p>
+                <small style="color: #d1d5da;">mayor % acierto</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3 id="best-runs-team">-</h3>
+                <p class="mb-0" style="color: #ffffff;">Mejor Equipo Carreras</p>
+                <small style="color: #d1d5da;">mayor % acierto</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <button class="btn btn-primary" onclick="loadAnalysis()">
+            <i class="bi bi-arrow-clockwise"></i> Actualizar Análisis
+        </button>
+        <button class="btn btn-outline-secondary ms-2" onclick="loadYesterdayResults()">
+            <i class="bi bi-calendar-check"></i> Resultados de Ayer
+        </button>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header" style="background-color: #1a1a2e;">
+                <h5 style="color: #ffffff;"><i class="bi bi-table"></i> Resultados de Ayer vs Predicciones</h5>
+            </div>
+            <div class="card-body table-responsive" id="comparisons-container">
+                <div class="text-center text-muted">
+                    <i class="bi bi-hourglass-split" style="font-size: 2rem;"></i>
+                    <p>Cargando...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header" style="background-color: #1a1a2e;">
+                <h5 style="color: #ffffff;"><i class="bi bi-people"></i> Rendimiento por Equipo</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover" id="team-stats-table">
+                        <thead>
+                            <tr>
+                                <th>Equipo</th>
+                                <th>Juegos</th>
+                                <th>% ML</th>
+                                <th>% Carreras</th>
+                                <th>Prom. Diferencia</th>
+                                <th>Local ML %</th>
+                                <th>Visita ML %</th>
+                            </tr>
+                        </thead>
+                        <tbody id="team-stats-body">
+                            <tr>
+                                <td colspan="7" class="text-center text-muted">Cargando...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% block scripts %}
+<script>
+async function loadAnalysis() {
+    try {
+        const response = await fetch('/api/analysis/today');
+        const data = await response.json();
+        
+        if (data.success) {
+            updateStats(data.data.accuracy_stats);
+            renderComparisons(data.data.comparisons);
+            renderTeamStats(data.data.team_tracking);
+        }
+    } catch (error) {
+        console.error('Error cargando análisis:', error);
+    }
+}
+
+function updateStats(stats) {
+    document.getElementById('total-games').textContent = stats.total_games || 0;
+    document.getElementById('runs-accuracy').textContent = (stats.runs_accuracy_pct || 0) + '%';
+    document.getElementById('ml-accuracy').textContent = (stats.ml_accuracy_pct || 0) + '%';
+    document.getElementById('ou-accuracy').textContent = (stats.ou_accuracy_pct || 0) + '%';
+    document.getElementById('avg-diff').textContent = (stats.avg_run_diff || 0).toFixed(1);
+}
+
+function renderComparisons(comparisons) {
+    const container = document.getElementById('comparisons-container');
+    
+    if (!comparisons || comparisons.length === 0) {
+        container.innerHTML = `
+            <div class="text-center text-muted">
+                <i class="bi bi-inbox" style="font-size: 2rem;"></i>
+                <p>No hay comparaciones disponibles</p>
+                <small>Asegúrate de haber registrado predicciones y resultados</small>
+            </div>
+        `;
+        return;
+    }
+    
+    let html = `
+        <table class="table table-dark table-hover table-sm">
+            <thead>
+                <tr>
+                    <th>Partido</th>
+                    <th>Predicción</th>
+                    <th>Resultado</th>
+                    <th>Dif.</th>
+                    <th>Carreras</th>
+                    <th>ML</th>
+                    <th>O/U</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+    
+    comparisons.forEach(comp => {
+        const pred = comp.prediction;
+        const result = comp.result;
+        const analysis = comp.analysis;
+        
+        const runsIcon = analysis.runs_correct ? 
+            '<span style="color: #3fb950;"><i class="bi bi-check-circle-fill"></i></span>' : 
+            '<span style="color: #f85149;"><i class="bi bi-x-circle-fill"></i></span>';
+        
+        const mlIcon = analysis.ml_correct ? 
+            '<span style="color: #3fb950;"><i class="bi bi-check-circle-fill"></i></span>' : 
+            '<span style="color: #f85149;"><i class="bi bi-x-circle-fill"></i></span>';
+        
+        const ouIcon = analysis.total_correct ? 
+            '<span style="color: #3fb950;"><i class="bi bi-check-circle-fill"></i></span>' : 
+            '<span style="color: #f85149;"><i class="bi bi-x-circle-fill"></i></span>';
+        
+        html += `
+            <tr>
+                <td>
+                    <strong>${comp.away_team}</strong> @ <strong>${comp.home_team}</strong>
+                    <br><small style="color: #d1d5da;">${comp.venue || ''}</small>
+                </td>
+                <td>
+                    ${pred.away_score.toFixed(0)} - ${pred.home_score.toFixed(0)}
+                    <br><small style="color: #d1d5da;">Fav: ${pred.favorite}</small>
+                </td>
+                <td>
+                    ${result.away_score} - ${result.home_score}
+                    <br><small style="color: #d1d5da;">Ganador: ${result.winner}</small>
+                </td>
+                <td>
+                    <span style="color: ${analysis.total_diff <= 1 ? '#3fb950' : analysis.total_diff <= 2 ? '#d29922' : '#f85149'};">
+                        ±${analysis.total_diff.toFixed(1)}
+                    </span>
+                </td>
+                <td class="text-center">${runsIcon}</td>
+                <td class="text-center">${mlIcon}</td>
+                <td class="text-center">${ouIcon}</td>
+            </tr>
+        `;
+    });
+    
+    html += '</tbody></table>';
+    container.innerHTML = html;
+}
+
+function renderTeamStats(teamTracking) {
+    const tbody = document.getElementById('team-stats-body');
+    
+    if (!teamTracking || Object.keys(teamTracking).length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No hay datos de equipos</td></tr>';
+        return;
+    }
+    
+    const teams = Object.entries(teamTracking).sort((a, b) => b[1].ml_accuracy_pct - a[1].ml_accuracy_pct);
+    
+    if (teams.length > 0) {
+        document.getElementById('best-team').textContent = teams[0][0];
+        document.getElementById('best-team').className = 'text-success';
+    }
+    
+    const runsTeams = Object.entries(teamTracking).sort((a, b) => b[1].runs_accuracy_pct - a[1].runs_accuracy_pct);
+    if (runsTeams.length > 0) {
+        document.getElementById('best-runs-team').textContent = runsTeams[0][0];
+        document.getElementById('best-runs-team').className = 'text-success';
+    }
+    
+    let html = '';
+    teams.forEach(([name, stats]) => {
+        const mlClass = stats.ml_accuracy_pct >= 60 ? 'text-success' : stats.ml_accuracy_pct >= 50 ? 'text-warning' : 'text-danger';
+        const runsClass = stats.runs_accuracy_pct >= 50 ? 'text-success' : 'text-danger';
+        
+        html += `
+            <tr>
+                <td><strong>${name}</strong></td>
+                <td>${stats.games}</td>
+                <td class="${mlClass}">${stats.ml_accuracy_pct}%</td>
+                <td class="${runsClass}">${stats.runs_accuracy_pct}%</td>
+                <td>±${stats.avg_run_diff}</td>
+                <td><small>Local: ${stats.home_ml_pct}%</small><br><small>Visita: ${stats.away_ml_pct}%</small></td>
+            </tr>
+        `;
+    });
+    
+    tbody.innerHTML = html;
+}
+
+async function loadYesterdayResults() {
+    try {
+        const response = await fetch('/api/analysis/yesterday-results');
+        const data = await response.json();
+        
+        if (data.success) {
+            console.log('Resultados de ayer:', data.data);
+            alert(`Resultados de ayer (${data.data.date}):\n${data.data.games.length} partidos`);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', loadAnalysis);
+</script>
+{% endblock %}
+{% endblock %}

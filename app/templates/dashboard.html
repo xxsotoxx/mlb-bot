@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12 text-center">
+        <h1><i class="bi bi-graph-up"></i> Dashboard de Predicciones</h1>
+        <p class="text-muted">Historial y estadísticas de precisión del modelo</p>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3 class="text-primary" id="total-predictions">0</h3>
+                <p class="mb-0" style="color: #ffffff;">Total Predicciones</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3 class="text-success" id="money-line-pct">0%</h3>
+                <p class="mb-0" style="color: #ffffff;">Money Line</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3 class="text-warning" id="ou-pct">0%</h3>
+                <p class="mb-0" style="color: #ffffff;">Over/Under</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3 class="text-info" id="avg-diff">0</h3>
+                <p class="mb-0" style="color: #ffffff;">Error Promedio</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header" style="background-color: #1a1a2e; color: #ffffff;">
+                <h5 style="color: #ffffff;"><i class="bi bi-list-ul"></i> Historial Completo</h5>
+            </div>
+            <div class="card-body table-responsive">
+                <table class="table table-dark table-hover">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Partido</th>
+                            <th>Predicción</th>
+                            <th>Resultado Real</th>
+                            <th>Favorito</th>
+                            <th>Over Line</th>
+                            <th>Accion</th>
+                        </tr>
+                    </thead>
+                    <tbody id="history-table-body">
+                        <tr>
+                            <td colspan="7" class="text-center text-muted">Cargando...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+    <div class="modal fade" id="resultModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content" style="background-color: #161b22; color: #ffffff;">
+                <div class="modal-header" style="background-color: #1a1a2e; color: #ffffff;">
+                    <h5 class="modal-title" style="color: #ffffff;">Registrar Resultado</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" style="color: #ffffff;">
+                <p id="modal-game-info" style="color: #ffffff;"></p>
+                <div class="row">
+                    <div class="col-6">
+                        <label class="form-label" style="color: #ffffff;">Carreras Local</label>
+                        <input type="number" class="form-control" id="modal-home-score" min="0" value="0">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label" style="color: #ffffff;">Carreras Visitante</label>
+                        <input type="number" class="form-control" id="modal-away-score" min="0" value="0">
+                    </div>
+                </div>
+                <input type="hidden" id="modal-game-id">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="registrarResultadoDashboard()">Guardar</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% block scripts %}
+<script src="/static/js/dashboard.js"></script>
+{% endblock %}
+{% endblock %}
