@@ -157,7 +157,7 @@ def get_prediction_by_game(db, game_id: int):
 def get_predictions_with_results(db):
     """Obtiene predicciones que ya tienen resultado"""
     return db.query(PredictionRecordDB).filter(
-        PredictionRecordDB.result_registered == True
+        PredictionRecordDB.actual_home_score.isnot(None)
     ).order_by(PredictionRecordDB.game_date.desc()).all()
 
 
