@@ -88,6 +88,7 @@ class StatsService:
                         "predicted_favorite": p.predicted_favorite,
                         "home_win_probability": p.home_win_probability,
                         "over_line": p.over_line,
+                        "over_probability": getattr(p, 'over_probability', 0.5),
                         "actual_home_score": p.actual_home_score,
                         "actual_away_score": p.actual_away_score,
                         "result_registered": p.result_registered
@@ -326,6 +327,13 @@ class StatsService:
                 total_correct = total_diff <= 1
                 ml_correct = pred_fav.lower() in actual_winner.lower() if actual_winner != "Tie" else False
                 
+                ou_line = p.over_line or 8
+                actual_total = actual_home + actual_away
+                predicted_over_prob = getattr(p, 'over_probability', 0.5)
+                over_correct = actual_total > ou_line
+                pred_over = predicted_over_prob > 0.5
+                ou_correct = over_correct == pred_over
+                
                 comparisons.append({
                     "game_id": p.game_id,
                     "game_date": p.game_date.isoformat() if p.game_date else None,
@@ -350,7 +358,8 @@ class StatsService:
                         "total_diff": total_diff,
                         "runs_correct": runs_correct,
                         "total_correct": total_correct,
-                        "ml_correct": ml_correct
+                        "ml_correct": ml_correct,
+                        "ou_correct": ou_correct
                     }
                 })
             
