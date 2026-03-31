@@ -11,7 +11,7 @@ from apscheduler.triggers.cron import CronTrigger
 
 from .results_fetcher import results_fetcher
 from .accuracy_calculator import accuracy_calculator
-from ..models.database import get_db, get_prediction_by_game, update_prediction_result, save_prediction
+from ..models.database import get_db, get_prediction_by_game, update_prediction_result, save_prediction, save_game_result
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -81,6 +81,43 @@ async def fetch_yesterday_results():
                         game.get("home_score", 0),
                         game.get("away_score", 0)
                     )
+                    
+                    # Also save to game_results table for dashboard
+                    ou_prediction = "OVER" if prediction.over_probability > 0.5 else "UNDER"
+                    actual_total = game.get("home_score", 0) + game.get("away_score", 0)
+                    ou_actual = "OVER" if actual_total > prediction.over_line else "UNDER"
+                    
+                    result_data = {
+                        "game_id": game_id,
+                        "game_date": yesterday,
+                        "home_team": home_team,
+                        "away_team": away_team,
+                        "predicted_home_score": prediction.predicted_home_score,
+                        "predicted_away_score": prediction.predicted_away_score,
+                        "predicted_total": prediction.predicted_total,
+                        "predicted_favorite": prediction.predicted_favorite,
+                        "over_line": prediction.over_line,
+                        "over_probability": prediction.over_probability,
+                        "actual_home_score": game.get("home_score", 0),
+                        "actual_away_score": game.get("away_score", 0),
+                        "actual_total": actual_total,
+                        "actual_winner": game.get("winner"),
+                        "ml_correct": comparison.get("ml_correct", False),
+                        "ou_correct": comparison.get("ou_correct", False),
+                        "rl_correct": comparison.get("rl_correct", False),
+                        "score_error": comparison.get("score_error", 0),
+                        "total_error": comparison.get("total_error", 0),
+                        "ml_prediction": prediction.predicted_favorite,
+                        "ml_actual": game.get("winner"),
+                        "ou_prediction": ou_prediction,
+                        "ou_actual": ou_actual
+                    }
+                    
+                    try:
+                        save_game_result(db, result_data)
+                        logger.info(f"  Game result saved to dashboard table")
+                    except Exception as e:
+                        logger.error(f"  Error saving game result: {e}")
                     
                     comparisons.append(comparison)
                     updated_count += 1

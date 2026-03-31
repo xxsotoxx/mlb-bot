@@ -47,6 +47,13 @@ async def startup_event():
     logger.info("Inicializando base de datos...")
     init_db()
     
+    # Migrar datos históricos a game_results table
+    from app.services.migrate_results import migrate_historical_results
+    try:
+        migrate_historical_results()
+    except Exception as e:
+        logger.warning(f"Migración de resultados históricos: {e}")
+    
     logger.info("Iniciando scheduler de jobs automáticos...")
     start_scheduler()
     

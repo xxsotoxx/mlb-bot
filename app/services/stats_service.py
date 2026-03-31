@@ -135,8 +135,11 @@ class StatsService:
             
             ou_line = pred.get("over_line", 8)
             actual_total = matched_result["total_runs"]
+            
+            # Fixed: Use over_probability directly instead of score sum
+            predicted_over_prob = pred.get("over_probability", 0.5)
             over_correct = actual_total > ou_line
-            pred_over = (pred["predicted_home_score"] + pred["predicted_away_score"]) > ou_line
+            pred_over = predicted_over_prob > 0.5
             ou_correct = over_correct == pred_over
             
             comparison = {

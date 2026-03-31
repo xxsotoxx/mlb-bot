@@ -16,16 +16,27 @@ class PredictionEngine:
     """Motor de predicciones usando métricas sabermétricas"""
     
     LEAGUE_AVG_RUNS = 8.5
+    CACHE_TTL_SECONDS = 3600  # 1 hour TTL for cached stats
     
     def __init__(self):
         self.team_cache = {}
+        self.team_cache_time = {}
         self.pitcher_cache = {}
+        self.pitcher_cache_time = {}
     
     async def get_team_recent_stats(self, team_id: int) -> Dict[str, float]:
         """Calcula estadísticas recientes de un equipo (últimos 15 partidos)"""
-        if team_id in self.team_cache:
-            return self.team_cache[team_id]
+        import time
+        current_time = time.time()
         
+        # Check if cached data is still valid (less than CACHE_TTL_SECONDS old)
+        if team_id in self.team_cache and team_id in self.team_cache_time:
+            cache_age = current_time - self.team_cache_time[team_id]
+            if cache_age < self.CACHE_TTL_SECONDS:
+                logger.info(f"Using cached stats for team {team_id} (age: {cache_age:.0f}s)")
+                return self.team_cache[team_id]
+        
+        # Fetch fresh data from API
         try:
             games = await mlb_client.get_recent_games(team_id, games=15)
             
@@ -77,6 +88,7 @@ class PredictionEngine:
             logger.info(f"Team {team_id}: {wins}-{losses} record, {avg_scored:.2f} RA, {avg_allowed:.2f} RC, {len(runs_scored)} games found")
             
             self.team_cache[team_id] = stats
+            self.team_cache_time[team_id] = time.time()
             return stats
             
         except Exception as e:
@@ -94,12 +106,20 @@ class PredictionEngine:
     
     async def get_pitcher_stats(self, pitcher_id: int) -> Dict[str, float]:
         """Obtiene estadísticas de un pitcher"""
+        import time
+        current_time = time.time()
+        
         if not pitcher_id:
             return self._default_pitcher_stats()
         
-        if pitcher_id in self.pitcher_cache:
-            return self.pitcher_cache[pitcher_id]
+        # Check if cached data is still valid
+        if pitcher_id in self.pitcher_cache and pitcher_id in self.pitcher_cache_time:
+            cache_age = current_time - self.pitcher_cache_time[pitcher_id]
+            if cache_age < self.CACHE_TTL_SECONDS:
+                logger.info(f"Using cached stats for pitcher {pitcher_id} (age: {cache_age:.0f}s)")
+                return self.pitcher_cache[pitcher_id]
         
+        # Fetch fresh data from API
         try:
             stats_data = await mlb_client.get_player_stats(pitcher_id, "pitching")
             
@@ -138,6 +158,7 @@ class PredictionEngine:
             }
             
             self.pitcher_cache[pitcher_id] = stats
+            self.pitcher_cache_time[pitcher_id] = time.time()
             return stats
             
         except Exception as e:
