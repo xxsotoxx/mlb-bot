@@ -290,6 +290,28 @@ class StatsService:
         yesterday_predictions = await self.get_predictions_for_date(yesterday_date)
         
         comparisons = self.compare_predictions_with_results(yesterday_predictions, yesterday_results)
+        
+        if not comparisons:
+            db_gen = get_db()
+            db = next(db_gen)
+            try:
+                predictions_with_results = get_predictions_with_results(db, limit=20)
+                if predictions_with_results:
+                    alt_results = await self.get_yesterday_results()
+                    comparisons = self.compare_predictions_with_results(
+                        [{"id": p.id, "game_id": p.game_id, "game_date": p.game_date.isoformat() if p.game_date else None,
+                          "home_team": p.home_team, "away_team": p.away_team,
+                          "predicted_home_score": p.predicted_home_score, "predicted_away_score": p.predicted_away_score,
+                          "predicted_total": p.predicted_total, "predicted_favorite": p.predicted_favorite,
+                          "home_win_probability": p.home_win_probability, "over_line": p.over_line,
+                          "over_probability": getattr(p, 'over_probability', 0.5),
+                          "actual_home_score": p.actual_home_score, "actual_away_score": p.actual_away_score,
+                          "result_registered": p.result_registered} for p in predictions_with_results],
+                        alt_results
+                    )
+            finally:
+                db.close()
+        
         accuracy_stats = self.calculate_accuracy_stats(comparisons)
         team_tracking = self.get_team_tracking(comparisons)
         
