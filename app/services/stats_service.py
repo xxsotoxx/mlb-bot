@@ -284,41 +284,81 @@ class StatsService:
         return result
     
     async def get_full_analysis(self) -> Dict[str, Any]:
-        """Obtiene el análisis completo: resultados de ayer, comparaciones y estadísticas"""
-        yesterday_results = await self.get_yesterday_results()
-        yesterday_date = date.today() - timedelta(days=1)
-        yesterday_predictions = await self.get_predictions_for_date(yesterday_date)
+        """Obtiene el análisis completo usando resultados guardados en DB"""
+        db_gen = get_db()
+        db = next(db_gen)
         
-        comparisons = self.compare_predictions_with_results(yesterday_predictions, yesterday_results)
-        
-        if not comparisons:
-            db_gen = get_db()
-            db = next(db_gen)
-            try:
-                predictions_with_results = get_predictions_with_results(db, limit=20)
-                if predictions_with_results:
-                    alt_results = await self.get_yesterday_results()
-                    comparisons = self.compare_predictions_with_results(
-                        [{"id": p.id, "game_id": p.game_id, "game_date": p.game_date.isoformat() if p.game_date else None,
-                          "home_team": p.home_team, "away_team": p.away_team,
-                          "predicted_home_score": p.predicted_home_score, "predicted_away_score": p.predicted_away_score,
-                          "predicted_total": p.predicted_total, "predicted_favorite": p.predicted_favorite,
-                          "home_win_probability": p.home_win_probability, "over_line": p.over_line,
-                          "over_probability": getattr(p, 'over_probability', 0.5),
-                          "actual_home_score": p.actual_home_score, "actual_away_score": p.actual_away_score,
-                          "result_registered": p.result_registered} for p in predictions_with_results],
-                        alt_results
-                    )
-            finally:
-                db.close()
+        try:
+            predictions_with_results = get_predictions_with_results(db, limit=20)
+            
+            comparisons = []
+            for p in predictions_with_results:
+                if p.actual_home_score is None or p.actual_away_score is None:
+                    continue
+                
+                actual_home = p.actual_home_score
+                actual_away = p.actual_away_score
+                actual_winner = p.home_team if actual_home > actual_away else (p.away_team if actual_away > actual_home else "Tie")
+                
+                home_score_diff = abs(p.predicted_home_score - actual_home) if p.predicted_home_score else 0
+                away_score_diff = abs(p.predicted_away_score - actual_away) if p.predicted_away_score else 0
+                total_diff = abs((p.predicted_home_score + p.predicted_away_score) - (actual_home + actual_away)) if p.predicted_home_score else 0
+                
+                runs_correct = home_score_diff <= 1 and away_score_diff <= 1
+                total_correct = total_diff <= 1
+                
+                pred_fav = p.predicted_favorite or ""
+                ml_correct = pred_fav.lower() in actual_winner.lower() if actual_winner != "Tie" else False
+                
+                ou_line = p.over_line or 8
+                actual_total = actual_home + actual_away
+                predicted_over_prob = getattr(p, 'over_probability', 0.5)
+                over_correct = actual_total > ou_line
+                pred_over = predicted_over_prob > 0.5
+                ou_correct = over_correct == pred_over
+                
+                comparisons.append({
+                    "game_id": p.game_id,
+                    "game_date": p.game_date.isoformat() if p.game_date else None,
+                    "home_team": p.home_team,
+                    "away_team": p.away_team,
+                    "venue": None,
+                    "prediction": {
+                        "home_score": p.predicted_home_score,
+                        "away_score": p.predicted_away_score,
+                        "total": p.predicted_total,
+                        "favorite": pred_fav,
+                        "over_line": ou_line
+                    },
+                    "result": {
+                        "home_score": actual_home,
+                        "away_score": actual_away,
+                        "total": actual_total,
+                        "winner": actual_winner,
+                        "status": "Final"
+                    },
+                    "analysis": {
+                        "home_diff": home_score_diff,
+                        "away_diff": away_score_diff,
+                        "total_diff": total_diff,
+                        "runs_correct": runs_correct,
+                        "total_correct": total_correct,
+                        "ml_correct": ml_correct,
+                        "ou_correct": ou_correct
+                    }
+                })
+        finally:
+            db.close()
         
         accuracy_stats = self.calculate_accuracy_stats(comparisons)
         team_tracking = self.get_team_tracking(comparisons)
         
+        yesterday_date = date.today() - timedelta(days=1)
+        
         return {
             "yesterday_date": yesterday_date.isoformat(),
-            "yesterday_results": yesterday_results,
-            "yesterday_predictions": yesterday_predictions,
+            "yesterday_results": [],
+            "yesterday_predictions": [],
             "comparisons": comparisons,
             "accuracy_stats": accuracy_stats,
             "team_tracking": team_tracking,
