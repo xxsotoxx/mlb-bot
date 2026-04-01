@@ -1,7 +1,7 @@
 """
 Rutas para análisis y estadísticas de predicciones
 """
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, Depends
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from datetime import date, timedelta
@@ -11,8 +11,9 @@ from ..services.stats_service import stats_service
 from ..services.scheduler import get_scheduler_status, run_now
 from ..services.results_fetcher import results_fetcher
 from ..services.accuracy_calculator import accuracy_calculator
-from ..models.database import get_db, get_accuracy_stats, get_game_results, save_game_result
+from ..models.database import get_db, get_accuracy_stats, get_game_results, save_game_result, UserDB
 from ..schemas.schemas import APIResponse
+from ..auth.deps import get_current_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -20,19 +21,22 @@ templates = Jinja2Templates(directory="app/templates")
 
 
 @router.get("/analysis", response_class=HTMLResponse)
-async def analysis_page(request: Request):
+async def analysis_page(request: Request, current_user: UserDB = Depends(get_current_user)):
     """Página de análisis diario"""
     return templates.TemplateResponse("stats.html", {"request": request})
 
 
 @router.get("/dashboard", response_class=HTMLResponse)
-async def dashboard_page(request: Request):
+async def dashboard_page(request: Request, current_user: UserDB = Depends(get_current_user)):
     """Página del dashboard de precisión"""
     return templates.TemplateResponse("dashboard.html", {"request": request})
 
 
 @router.get("/api/dashboard/stats", response_model=APIResponse)
-async def get_dashboard_stats(days: int = 60):
+async def get_dashboard_stats(
+    days: int = 60,
+    current_user: UserDB = Depends(get_current_user)
+):
     """
     Obtiene estadísticas del dashboard de precisión
     - ML Accuracy
@@ -94,7 +98,7 @@ async def get_dashboard_stats(days: int = 60):
 
 
 @router.get("/api/dashboard/trigger-fetch", response_model=APIResponse)
-async def trigger_results_fetch():
+async def trigger_results_fetch(current_user: UserDB = Depends(get_current_user)):
     """
     Endpoint para ejecutar manualmente la obtención de resultados
     Útil para testing o para forzar una actualización
@@ -117,7 +121,7 @@ async def trigger_results_fetch():
 
 
 @router.get("/api/dashboard/scheduler-status", response_model=APIResponse)
-async def get_scheduler_status_endpoint():
+async def get_scheduler_status_endpoint(current_user: UserDB = Depends(get_current_user)):
     """Obtiene el estado del scheduler"""
     try:
         status = get_scheduler_status()
@@ -138,7 +142,7 @@ async def get_scheduler_status_endpoint():
 
 
 @router.get("/api/analysis/today", response_model=APIResponse)
-async def get_today_analysis():
+async def get_today_analysis(current_user: UserDB = Depends(get_current_user)):
     """
     Obtiene el análisis completo del día:
     1. Resultados de ayer
@@ -166,7 +170,7 @@ async def get_today_analysis():
 
 
 @router.get("/api/analysis/yesterday-results", response_model=APIResponse)
-async def get_yesterday_results():
+async def get_yesterday_results(current_user: UserDB = Depends(get_current_user)):
     """Obtiene los resultados reales de ayer"""
     try:
         results = await stats_service.get_yesterday_results()
@@ -190,7 +194,7 @@ async def get_yesterday_results():
 
 
 @router.get("/api/analysis/all-time", response_model=APIResponse)
-async def get_all_time_stats():
+async def get_all_time_stats(current_user: UserDB = Depends(get_current_user)):
     """Obtiene estadísticas acumuladas de todas las predicciones"""
     try:
         stats = await stats_service.get_all_time_stats()
@@ -211,7 +215,10 @@ async def get_all_time_stats():
 
 
 @router.get("/api/analysis/team/{team_name}", response_model=APIResponse)
-async def get_team_analysis(team_name: str):
+async def get_team_analysis(
+    team_name: str,
+    current_user: UserDB = Depends(get_current_user)
+):
     """Obtiene análisis detallado de un equipo específico"""
     try:
         all_stats = await stats_service.get_all_time_stats()

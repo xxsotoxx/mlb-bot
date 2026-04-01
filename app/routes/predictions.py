@@ -12,16 +12,22 @@ from ..models.database import (
     get_predictions_with_results,
     update_prediction_result,
     get_prediction_by_game,
-    get_dashboard_stats
+    get_dashboard_stats,
+    UserDB
 )
 from ..schemas.schemas import PredictionRecord, ResultInput, DashboardStats, APIResponse
+from ..auth.deps import get_current_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
 @router.get("/api/predictions/history", response_model=APIResponse)
-async def get_predictions_history(db: Session = Depends(get_db), limit: int = 50):
+async def get_predictions_history(
+    db: Session = Depends(get_db),
+    limit: int = 50,
+    current_user: UserDB = Depends(get_current_user)
+):
     """
     Obtiene el historial de predicciones
     """
@@ -68,7 +74,11 @@ async def get_predictions_history(db: Session = Depends(get_db), limit: int = 50
 
 
 @router.get("/api/predictions/{game_id}", response_model=APIResponse)
-async def get_prediction(game_id: int, db: Session = Depends(get_db)):
+async def get_prediction(
+    game_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
     """
     Obtiene una predicción específica por game_id
     """
@@ -114,7 +124,12 @@ async def get_prediction(game_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/api/predictions/{game_id}/result", response_model=APIResponse)
-async def register_result(game_id: int, result: ResultInput, db: Session = Depends(get_db)):
+async def register_result(
+    game_id: int,
+    result: ResultInput,
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
     """
     Registra el resultado real de un partido
     """
@@ -148,7 +163,10 @@ async def register_result(game_id: int, result: ResultInput, db: Session = Depen
 
 
 @router.get("/api/dashboard", response_model=APIResponse)
-async def get_dashboard(db: Session = Depends(get_db)):
+async def get_dashboard(
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
     """
     Obtiene estadísticas del dashboard
     """

@@ -55,7 +55,8 @@ async def root_page():
 
 
 @router.get("/login", response_class=HTMLResponse)
-async def login_page():
+async def login_page(next_url: str = None):
+    """Página de login con temática MLB y soporte para next param"""
     """Página de login con temática MLB"""
     from app.models.database import get_db, count_users
     from sqlalchemy.orm import Session
@@ -359,6 +360,9 @@ async def login_page():
                     const password = document.getElementById('password').value;
                     const errorDiv = document.getElementById('error');
                     
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const nextUrl = urlParams.get('next') || '/dashboard';
+                    
                     try {
                         const res = await fetch('/api/auth/login', {
                             method: 'POST',
@@ -370,7 +374,7 @@ async def login_page():
                         if (res.ok) {
                             localStorage.setItem('token', data.access_token);
                             localStorage.setItem('user', JSON.stringify(data.user));
-                            window.location.href = '/dashboard';
+                            window.location.href = nextUrl;
                         } else {
                             errorDiv.textContent = data.detail || 'Credenciales incorrectas';
                             errorDiv.style.display = 'block';

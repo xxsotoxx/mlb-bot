@@ -9,11 +9,12 @@ from datetime import datetime, date, timezone
 from typing import List, Optional, Dict
 import logging
 
-from ..models.database import get_db, save_prediction, get_prediction_by_game, save_line_history, detect_line_movement
+from ..models.database import get_db, save_prediction, get_prediction_by_game, save_line_history, detect_line_movement, UserDB
 from ..schemas.schemas import GameWithPrediction, Prediction, GameInfo, APIResponse
 from ..services.mlb_api import fetch_today_games, parse_game_info
 from ..services.advanced_predictor import advanced_predictor
 from ..services.casino_lines import casino_scraper, get_default_lines
+from ..auth.deps import get_current_user
 
 
 def _save_line_history(game_id: int, game_date: date, prediction: Dict, casino_line: Dict):
@@ -186,19 +187,22 @@ templates = Jinja2Templates(directory="app/templates")
 
 
 @router.get("/", response_class=HTMLResponse)
-async def home(request: Request):
+async def home(request: Request, current_user: UserDB = Depends(get_current_user)):
     """Página principal del bot"""
     return templates.TemplateResponse("index.html", {"request": request})
 
 
 @router.get("/dashboard", response_class=HTMLResponse)
-async def dashboard(request: Request):
+async def dashboard(request: Request, current_user: UserDB = Depends(get_current_user)):
     """Página del dashboard de estadísticas"""
     return templates.TemplateResponse("dashboard.html", {"request": request})
 
 
 @router.get("/api/games/today", response_model=APIResponse)
-async def get_today_games(include_casino_lines: bool = True):
+async def get_today_games(
+    include_casino_lines: bool = True,
+    current_user: UserDB = Depends(get_current_user)
+):
     """
     Obtiene los partidos del día con predicciones avanzadas
     """
@@ -358,7 +362,10 @@ async def get_today_games(include_casino_lines: bool = True):
 
 
 @router.get("/api/games/{game_id}", response_model=APIResponse)
-async def get_game_detail(game_id: int):
+async def get_game_detail(
+    game_id: int,
+    current_user: UserDB = Depends(get_current_user)
+):
     """
     Obtiene detalles de un partido específico con su predicción
     """
