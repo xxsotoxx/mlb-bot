@@ -11,6 +11,11 @@ python-dateutil==2.8.2
 alembic==1.13.1
 apscheduler==3.10.4
 
+# Auth Dependencies
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-multipart==0.0.9
+
 # ML Dependencies
 torch==2.1.0
 torchvision==0.16.0

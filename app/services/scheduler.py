@@ -1,6 +1,7 @@
 """
 Scheduler para ejecutar jobs automáticos
 - Job de 6 AM: Obtener resultados de ayer y calcular precisión
+- Job de 6:30 AM: Entrenar modelos ML
 """
 import asyncio
 import logging
@@ -224,6 +225,19 @@ def start_scheduler():
         name="Fetch Last 7 Days (Monday 7 AM)",
         replace_existing=True
     )
+    
+    try:
+        from app.routes.ml import train_ml_models_job
+        scheduler.add_job(
+            train_ml_models_job,
+            CronTrigger(hour=6, minute=30),
+            id="train_ml_models",
+            name="Train ML Models (6:30 AM)",
+            replace_existing=True
+        )
+        logger.info("  - train_ml_models: Diariamente a las 6:30 AM")
+    except Exception as e:
+        logger.warning(f"ML training job not added: {e}")
     
     scheduler.start()
     logger.info("Scheduler iniciado correctamente")

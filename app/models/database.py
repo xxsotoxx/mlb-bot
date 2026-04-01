@@ -1,14 +1,37 @@
-"""Base de datos SQLite con SQLAlchemy"""
+"""Base de datos PostgreSQL con SQLAlchemy"""
+import os
 from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, Date, DateTime, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime, date
 
-DATABASE_URL = "sqlite:///./mlb_predictions.db"
+# PostgreSQL connection from environment
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql://mlb_user:mlbSecure2024!@postgres:5432/mlb_bot"
+)
 
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+# Create engine with PostgreSQL settings
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,
+    pool_size=10,
+    max_overflow=20
+)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
+
+
+class UserDB(Base):
+    """Modelo de usuario para autenticación"""
+    __tablename__ = "users"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), unique=True, index=True, nullable=False)
+    password_hash = Column(String(255), nullable=False)
+    is_admin = Column(Boolean, default=False)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class PredictionRecordDB(Base):
@@ -602,3 +625,49 @@ def get_ml_features_for_games(db, start_date: date, end_date: date):
         MLFeatureStoreDB.game_date >= start_date,
         MLFeatureStoreDB.game_date <= end_date
     ).all()
+
+
+# ==================== USER FUNCTIONS ====================
+
+def get_all_users(db):
+    """Obtiene todos los usuarios"""
+    return db.query(UserDB).filter(UserDB.is_active == True).all()
+
+
+def get_user_by_username(db, username: str):
+    """Obtiene usuario por nombre de usuario"""
+    return db.query(UserDB).filter(UserDB.username == username).first()
+
+
+def get_user_by_id(db, user_id: int):
+    """Obtiene usuario por ID"""
+    return db.query(UserDB).filter(UserDB.id == user_id).first()
+
+
+def create_user(db, username: str, password_hash: str, is_admin: bool = False):
+    """Crea un nuevo usuario"""
+    user = UserDB(
+        username=username,
+        password_hash=password_hash,
+        is_admin=is_admin,
+        is_active=True
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+def delete_user(db, user_id: int):
+    """Elimina (desactiva) un usuario"""
+    user = db.query(UserDB).filter(UserDB.id == user_id).first()
+    if user:
+        user.is_active = False
+        db.commit()
+        return True
+    return False
+
+
+def count_users(db):
+    """Cuenta el número de usuarios activos"""
+    return db.query(UserDB).filter(UserDB.is_active == True).count()
