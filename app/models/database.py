@@ -103,6 +103,139 @@ class GameResultDB(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class MLPredictionDB(Base):
+    """Modelo para guardar predicciones del modelo ML"""
+    __tablename__ = "ml_predictions"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    game_id = Column(Integer, unique=True, index=True)
+    game_date = Column(Date, index=True)
+    
+    home_team = Column(String(100))
+    away_team = Column(String(100))
+    
+    ml_predicted_home_score = Column(Float)
+    ml_predicted_away_score = Column(Float)
+    ml_predicted_total = Column(Float)
+    ml_home_win_prob = Column(Float)
+    ml_away_win_prob = Column(Float)
+    ml_favorite = Column(String(100))
+    
+    rules_predicted_home_score = Column(Float)
+    rules_predicted_away_score = Column(Float)
+    rules_predicted_total = Column(Float)
+    
+    ensemble_predicted_home_score = Column(Float)
+    ensemble_predicted_away_score = Column(Float)
+    ensemble_predicted_total = Column(Float)
+    ensemble_favorite = Column(String(100))
+    ensemble_home_prob = Column(Float)
+    ensemble_away_prob = Column(Float)
+    
+    ml_weight = Column(Float, default=0.6)
+    rules_weight = Column(Float, default=0.4)
+    
+    over_line = Column(Float)
+    over_probability = Column(Float)
+    over_prediction = Column(String(10))
+    
+    casino_ou_line = Column(Float, nullable=True)
+    casino_ml_home = Column(Integer, nullable=True)
+    casino_ml_away = Column(Integer, nullable=True)
+    
+    edge_detected = Column(Boolean, default=False)
+    edge_type = Column(String(20), nullable=True)
+    edge_recommendation = Column(String(20), nullable=True)
+    edge_score = Column(Float, nullable=True)
+    edge_confidence = Column(String(10), nullable=True)
+    
+    actual_home_score = Column(Integer, nullable=True)
+    actual_away_score = Column(Integer, nullable=True)
+    actual_total = Column(Integer, nullable=True)
+    actual_winner = Column(String(100), nullable=True)
+    
+    ml_correct = Column(Boolean, nullable=True)
+    ou_correct = Column(Boolean, nullable=True)
+    
+    bet_placed = Column(Boolean, default=False)
+    bet_result = Column(String(10), nullable=True)
+    bet_profit = Column(Float, nullable=True)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class MLModelMetadataDB(Base):
+    """Modelo para metadata de modelos ML"""
+    __tablename__ = "ml_model_metadata"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    model_type = Column(String(50))
+    version = Column(String(50), unique=True, index=True)
+    
+    model_path = Column(String(200))
+    feature_names = Column(String(500))
+    
+    training_date = Column(Date)
+    training_samples = Column(Integer)
+    test_samples = Column(Integer)
+    
+    home_mae = Column(Float, nullable=True)
+    away_mae = Column(Float, nullable=True)
+    total_mae = Column(Float, nullable=True)
+    win_accuracy = Column(Float, nullable=True)
+    
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class MLFeatureStoreDB(Base):
+    """Modelo para almacenar features pre-computados por juego"""
+    __tablename__ = "ml_feature_store"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    game_id = Column(Integer, unique=True, index=True)
+    game_date = Column(Date, index=True)
+    
+    home_team_id = Column(Integer)
+    away_team_id = Column(Integer)
+    
+    home_runs_scored_avg = Column(Float)
+    home_runs_allowed_avg = Column(Float)
+    home_win_pct = Column(Float)
+    home_pythagorean_pct = Column(Float)
+    
+    away_runs_scored_avg = Column(Float)
+    away_runs_allowed_avg = Column(Float)
+    away_win_pct = Column(Float)
+    away_pythagorean_pct = Column(Float)
+    
+    home_pitcher_era = Column(Float)
+    home_pitcher_fip = Column(Float)
+    home_pitcher_xfip = Column(Float)
+    home_pitcher_k_per_9 = Column(Float)
+    home_pitcher_bb_per_9 = Column(Float)
+    
+    away_pitcher_era = Column(Float)
+    away_pitcher_fip = Column(Float)
+    away_pitcher_xfip = Column(Float)
+    away_pitcher_k_per_9 = Column(Float)
+    away_pitcher_bb_per_9 = Column(Float)
+    
+    home_bullpen_era = Column(Float)
+    away_bullpen_era = Column(Float)
+    
+    home_batting_ops = Column(Float)
+    away_batting_ops = Column(Float)
+    
+    park_factor = Column(Float)
+    
+    rest_days_home = Column(Integer)
+    rest_days_away = Column(Integer)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 def init_db():
     """Inicializa la base de datos"""
     Base.metadata.create_all(bind=engine)
@@ -354,3 +487,118 @@ def get_accuracy_stats(db, days: int = 60):
         "avg_total_error": round(total_errors / total, 2) if total > 0 else 0.0,
         "days_analyzed": days
     }
+
+
+def save_ml_prediction(db, prediction_data: dict):
+    """Guarda predicción ML en la base de datos"""
+    existing = db.query(MLPredictionDB).filter(
+        MLPredictionDB.game_id == prediction_data.get("game_id")
+    ).first()
+    
+    if existing:
+        for key, value in prediction_data.items():
+            if value is not None:
+                setattr(existing, key, value)
+        existing.updated_at = datetime.utcnow()
+        db.commit()
+        return existing
+    else:
+        prediction = MLPredictionDB(**prediction_data)
+        db.add(prediction)
+        db.commit()
+        return prediction
+
+
+def get_ml_predictions(db, limit: int = 100):
+    """Obtiene predicciones ML"""
+    return db.query(MLPredictionDB).order_by(
+        MLPredictionDB.game_date.desc()
+    ).limit(limit).all()
+
+
+def get_ml_predictions_with_results(db):
+    """Obtiene predicciones ML con resultados reales"""
+    return db.query(MLPredictionDB).filter(
+        MLPredictionDB.actual_home_score.isnot(None)
+    ).order_by(MLPredictionDB.game_date.desc()).all()
+
+
+def update_ml_prediction_result(db, game_id: int, home_score: int, away_score: int):
+    """Actualiza resultado real de predicción ML"""
+    prediction = db.query(MLPredictionDB).filter(
+        MLPredictionDB.game_id == game_id
+    ).first()
+    
+    if prediction:
+        prediction.actual_home_score = home_score
+        prediction.actual_away_score = home_score + away_score
+        prediction.actual_total = home_score + away_score
+        prediction.actual_winner = "Home" if home_score > away_score else "Away"
+        
+        if prediction.ml_favorite == prediction.actual_winner:
+            prediction.ml_correct = True
+        
+        actual_over = (home_score + away_score) > prediction.over_line
+        pred_over = prediction.over_probability > 0.5
+        prediction.ou_correct = actual_over == pred_over
+        
+        prediction.updated_at = datetime.utcnow()
+        db.commit()
+        return True
+    return False
+
+
+def save_ml_model_metadata(db, metadata: dict):
+    """Guarda metadata de modelo ML"""
+    existing = db.query(MLModelMetadataDB).filter(
+        MLModelMetadataDB.version == metadata.get("version")
+    ).first()
+    
+    if existing:
+        for key, value in metadata.items():
+            if value is not None:
+                setattr(existing, key, value)
+        db.commit()
+        return existing
+    else:
+        model_meta = MLModelMetadataDB(**metadata)
+        db.add(model_meta)
+        db.commit()
+        return model_meta
+
+
+def get_active_ml_model(db, model_type: str = None):
+    """Obtiene modelo ML activo"""
+    query = db.query(MLModelMetadataDB).filter(MLModelMetadataDB.is_active == True)
+    
+    if model_type:
+        query = query.filter(MLModelMetadataDB.model_type == model_type)
+    
+    return query.order_by(MLModelMetadataDB.created_at.desc()).first()
+
+
+def save_ml_features(db, features_data: dict):
+    """Guarda features pre-computados para un juego"""
+    existing = db.query(MLFeatureStoreDB).filter(
+        MLFeatureStoreDB.game_id == features_data.get("game_id")
+    ).first()
+    
+    if existing:
+        for key, value in features_data.items():
+            if value is not None:
+                setattr(existing, key, value)
+        db.commit()
+        return existing
+    else:
+        features = MLFeatureStoreDB(**features_data)
+        db.add(features)
+        db.commit()
+        return features
+
+
+def get_ml_features_for_games(db, start_date: date, end_date: date):
+    """Obtiene features para un rango de fechas"""
+    return db.query(MLFeatureStoreDB).filter(
+        MLFeatureStoreDB.game_date >= start_date,
+        MLFeatureStoreDB.game_date <= end_date
+    ).all()
