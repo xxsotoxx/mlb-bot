@@ -257,7 +257,7 @@ class WinClassifierModel:
         self.is_trained = checkpoint['is_trained']
         
         self.model = WinProbabilityNN(self.input_dim).to(self.device)
-        self.model.load_state_dict(checkprint['model_state'])
+        self.model.load_state_dict(checkpoint['model_state'])
         
         logger.info(f"Win classifier loaded from {path}")
 
