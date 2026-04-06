@@ -2,7 +2,7 @@
 Auth Middleware - Protege TODAS las rutas excepto las públicas
 """
 from fastapi import Request, status
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse, HTMLResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 import logging
 import urllib.parse
@@ -22,6 +22,7 @@ PUBLIC_PATHS = [
     "/api/auth/login",
     "/api/auth/setup",
     "/api/auth/me",
+    "/api/health",
 ]
 
 REDIRECT_TO_LOGIN = [
@@ -29,6 +30,59 @@ REDIRECT_TO_LOGIN = [
     "/dashboard",
     "/analysis",
 ]
+
+LOGIN_PAGE_HTML = """
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MLB Bot - Sesión Expirada</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a237e 0%, #0d47a1 50%, #1565c0 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            width: 90%;
+            max-width: 450px;
+            text-align: center;
+        }
+        h2 { color: #1a237e; margin-bottom: 20px; }
+        p { color: #666; margin-bottom: 30px; }
+        .btn {
+            padding: 16px 32px;
+            background: linear-gradient(135deg, #c62828 0%, #b71c1c 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .btn:hover { transform: translateY(-2px); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>⚾ Sesión Expirada</h2>
+        <p>Tu sesión ha expirado. Por favor, inicia sesión nuevamente.</p>
+        <a href="/login" class="btn">Ir a Login</a>
+    </div>
+</body>
+</html>
+"""
 
 
 class AuthMiddleware(BaseHTTPMiddleware):

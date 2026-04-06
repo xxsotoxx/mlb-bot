@@ -59,19 +59,29 @@ templates = Jinja2Templates(directory="app/templates")
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard_page(request: Request):
     """Dashboard principal - requiere autenticación"""
-    from app.auth.deps import get_current_user
     from app.models.database import get_db
     
     try:
         db_gen = get_db()
         db = next(db_gen)
         
+        # Try to get token from header, query param, or cookie
         auth_header = request.headers.get("Authorization")
+        
+        # If no header, check query param (for redirect from login)
+        if not auth_header:
+            auth_header = request.query_params.get("token")
+            if auth_header and not auth_header.startswith("Bearer "):
+                auth_header = f"Bearer {auth_header}"
+        
+        # If still no token, redirect to login
         if not auth_header:
             return RedirectResponse(url="/login")
         
+        # Verify the token
+        token_clean = auth_header.replace("Bearer ", "")
         from app.auth.security import verify_token
-        payload = verify_token(auth_header.replace("Bearer ", ""))
+        payload = verify_token(token_clean)
         
         if not payload:
             return RedirectResponse(url="/login")

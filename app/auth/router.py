@@ -374,7 +374,19 @@ async def login_page(next_url: str = None):
                         if (res.ok) {
                             localStorage.setItem('token', data.access_token);
                             localStorage.setItem('user', JSON.stringify(data.user));
-                            window.location.href = nextUrl;
+                            
+                            // Verify token works before redirect
+                            const verifyRes = await fetch('/api/auth/me', {
+                                headers: {'Authorization': 'Bearer ' + data.access_token}
+                            });
+                            
+                            if (verifyRes.ok) {
+                                // Redirect to target page with token in URL hash
+                                window.location.href = nextUrl + '?token=' + data.access_token;
+                            } else {
+                                errorDiv.textContent = 'Error al verificar sesión';
+                                errorDiv.style.display = 'block';
+                            }
                         } else {
                             errorDiv.textContent = data.detail || 'Credenciales incorrectas';
                             errorDiv.style.display = 'block';
