@@ -8,8 +8,8 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 from fastapi import HTTPException, status
 
-# Password hashing context
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Password hashing context - using argon2 for better security and no bcrypt issues
+pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
 # JWT Configuration
 SECRET_KEY = os.getenv("SECRET_KEY", "mlb-bot-secret-key-change-in-production")
