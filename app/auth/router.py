@@ -372,21 +372,8 @@ async def login_page(next_url: str = None):
                         const data = await res.json();
                         
                         if (res.ok) {
-                            localStorage.setItem('token', data.access_token);
-                            localStorage.setItem('user', JSON.stringify(data.user));
-                            
-                            // Verify token works before redirect
-                            const verifyRes = await fetch('/api/auth/me', {
-                                headers: {'Authorization': 'Bearer ' + data.access_token}
-                            });
-                            
-                            if (verifyRes.ok) {
-                                // Redirect to target page with token in URL hash
-                                window.location.href = nextUrl + '?token=' + data.access_token;
-                            } else {
-                                errorDiv.textContent = 'Error al verificar sesión';
-                                errorDiv.style.display = 'block';
-                            }
+                            // Redirect to set-cookie endpoint which will establish cookie and redirect
+                            window.location.href = '/api/auth/set-cookie?token=' + data.access_token + '&next=' + encodeURIComponent(nextUrl);
                         } else {
                             errorDiv.textContent = data.detail || 'Credenciales incorrectas';
                             errorDiv.style.display = 'block';
@@ -567,3 +554,35 @@ async def delete_user_endpoint(
         )
     
     return None
+
+
+# ==================== Cookie Management ====================
+
+@router.get("/set-cookie")
+async def set_auth_cookie(token: str, next_url: str = "/dashboard"):
+    """
+    Establece cookie de autenticación y redirige a la página solicitada.
+    Este endpoint es usado después del login exitoso.
+    """
+    from fastapi.responses import RedirectResponse
+    
+    response = RedirectResponse(url=next_url)
+    response.set_cookie(
+        key="Authorization",
+        value=f"Bearer {token}",
+        httponly=True,
+        max_age=86400,
+        samesite="lax",
+        secure=False
+    )
+    return response
+
+
+@router.post("/logout")
+async def logout():
+    """Cierra sesión eliminando la cookie de autenticación"""
+    from fastapi.responses import RedirectResponse
+    
+    response = RedirectResponse(url="/login")
+    response.delete_cookie(key="Authorization")
+    return response

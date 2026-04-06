@@ -37,6 +37,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Add Cookie middleware for session management
+from starlette.middleware.cookies import CookieMiddleware
+app.add_middleware(CookieMiddleware)
+
+# Add Cookie middleware for session management
+from starlette.middleware.cookies import CookieMiddleware
+app.add_middleware(CookieMiddleware)
+
 app.add_middleware(AuthMiddleware)
 
 app.include_router(auth_router)
@@ -58,46 +66,29 @@ templates = Jinja2Templates(directory="app/templates")
 
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard_page(request: Request):
-    """Dashboard principal - requiere autenticación"""
-    from app.models.database import get_db
+    """Dashboard principal - autenticación verificada por middleware"""
+    from app.models.database import get_db, get_user_by_username
+    from app.auth.security import verify_token
     
-    try:
-        db_gen = get_db()
-        db = next(db_gen)
-        
-        # Try to get token from header, query param, or cookie
-        auth_header = request.headers.get("Authorization")
-        
-        # If no header, check query param (for redirect from login)
-        if not auth_header:
-            auth_header = request.query_params.get("token")
-            if auth_header and not auth_header.startswith("Bearer "):
-                auth_header = f"Bearer {auth_header}"
-        
-        # If still no token, redirect to login
-        if not auth_header:
-            return RedirectResponse(url="/login")
-        
-        # Verify the token
-        token_clean = auth_header.replace("Bearer ", "")
-        from app.auth.security import verify_token
-        payload = verify_token(token_clean)
-        
-        if not payload:
-            return RedirectResponse(url="/login")
-        
-        from app.models.database import get_user_by_username
-        user = get_user_by_username(db, payload.get("sub"))
-        
-        if not user:
-            return RedirectResponse(url="/login")
-        
-        db.close()
-        
-        return templates.TemplateResponse("index.html", {"request": request, "user": user})
-    except Exception as e:
-        logger.error(f"Dashboard error: {e}")
+    # Token is verified by middleware - just get user from state
+    user = getattr(request.state, "user", None)
+    
+    if not user:
+        # Fallback: try to get from header/cookie
+        auth_header = request.headers.get("Authorization") or request.cookies.get("Authorization")
+        if auth_header:
+            token = auth_header.replace("Bearer ", "")
+            payload = verify_token(token)
+            if payload:
+                db_gen = get_db()
+                db = next(db_gen)
+                user = get_user_by_username(db, payload.get("sub"))
+                db.close()
+    
+    if not user:
         return RedirectResponse(url="/login")
+    
+    return templates.TemplateResponse("index.html", {"request": request, "user": user})
 
 
 @app.on_event("startup")
