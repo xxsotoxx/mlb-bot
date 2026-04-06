@@ -43,7 +43,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
         
         if path in REDIRECT_TO_LOGIN:
             next_param = urllib.parse.quote(path, safe='')
-            return RedirectResponse(url=f"/api/auth/login?next={next_param}")
+            return RedirectResponse(url=f"/login?next={next_param}")
         
         if path.startswith("/api/"):
             if path.startswith("/api/auth/"):

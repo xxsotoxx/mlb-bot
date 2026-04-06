@@ -45,6 +45,13 @@ app.include_router(games.router)
 app.include_router(predictions.router)
 app.include_router(stats.router)
 
+# Route /login directly (without /api/auth prefix)
+@app.get("/login", response_class=HTMLResponse)
+async def login_page_root(next_url: str = None):
+    """Página de login en ruta raíz /login"""
+    from app.auth.router import login_page
+    return await login_page(next_url)
+
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
 
