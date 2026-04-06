@@ -23,11 +23,12 @@ PUBLIC_PATHS = [
     "/api/auth/setup",
     "/api/auth/me",
     "/api/health",
+    "/dashboard",
+    "/static",
 ]
 
 REDIRECT_TO_LOGIN = [
     "/",
-    "/dashboard",
     "/analysis",
 ]
 
