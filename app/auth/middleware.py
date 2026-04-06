@@ -22,7 +22,6 @@ PUBLIC_PATHS = [
     "/openapi.json",
     "/api/auth/me",
     "/api/health",
-    "/analysis",
 ]
 
 
