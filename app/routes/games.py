@@ -218,7 +218,7 @@ async def get_today_games(
         cached_predictions = get_daily_predictions_cache(db, today)
         db.close()
         
-        use_cache = not force_refresh and cached_predictions and len(cached_predictions) > 0
+        use_cache = cached_predictions and len(cached_predictions) > 0 and not force_refresh
         
         if use_cache:
             logger.info(f"Using cached predictions: {len(cached_predictions)} games")
