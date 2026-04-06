@@ -6,7 +6,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from datetime import timedelta
 
-from app.models.database import get_db, get_all_users, get_user_by_username, create_user, delete_user, count_users
+from app.models.database import get_db, get_all_users, get_user_by_username, create_user, delete_user, count_users, UserDB
 from app.auth.security import verify_password, get_password_hash, create_access_token, get_admin_password
 from app.auth.deps import get_current_user, require_admin
 
