@@ -7,9 +7,10 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from datetime import datetime, date, timezone
 from typing import List, Optional, Dict
+import json
 import logging
 
-from ..models.database import get_db, save_prediction, get_prediction_by_game, save_line_history, detect_line_movement, UserDB
+from ..models.database import get_db, save_prediction, get_prediction_by_game, save_line_history, detect_line_movement, get_daily_predictions_cache, save_daily_prediction_cache, UserDB
 from ..schemas.schemas import GameWithPrediction, Prediction, GameInfo, APIResponse
 from ..services.mlb_api import fetch_today_games, parse_game_info
 from ..services.advanced_predictor import advanced_predictor
@@ -187,26 +188,75 @@ templates = Jinja2Templates(directory="app/templates")
 
 
 @router.get("/", response_class=HTMLResponse)
-async def home(request: Request, current_user: UserDB = Depends(get_current_user)):
-    """Página principal del bot"""
+async def home(request: Request):
+    """Página principal del bot - autenticación manejada por middleware"""
     return templates.TemplateResponse("index.html", {"request": request})
 
 
 @router.get("/dashboard", response_class=HTMLResponse)
-async def dashboard(request: Request, current_user: UserDB = Depends(get_current_user)):
-    """Página del dashboard de estadísticas"""
+async def dashboard(request: Request):
+    """Página del dashboard de estadísticas - autenticación manejada por middleware"""
     return templates.TemplateResponse("dashboard.html", {"request": request})
 
 
 @router.get("/api/games/today", response_model=APIResponse)
 async def get_today_games(
     include_casino_lines: bool = True,
+    force_refresh: bool = False,
     current_user: UserDB = Depends(get_current_user)
 ):
     """
-    Obtiene los partidos del día con predicciones avanzadas
+    Obtiene los partidos del día con predicciones
+    Primero intenta leer del caché, si no hay genera nuevas
     """
     try:
+        today = date.today()
+        
+        db_gen = get_db()
+        db = next(db_gen)
+        
+        cached_predictions = get_daily_predictions_cache(db, today)
+        db.close()
+        
+        use_cache = not force_refresh and cached_predictions and len(cached_predictions) > 0
+        
+        if use_cache:
+            logger.info(f"Using cached predictions: {len(cached_predictions)} games")
+            
+            games_with_predictions = []
+            for cache in cached_predictions:
+                try:
+                    game_info = json.loads(cache.game_info_json)
+                    prediction = json.loads(cache.prediction_json)
+                    
+                    if include_casino_lines and cache.casino_line_json:
+                        try:
+                            casino_line = json.loads(cache.casino_line_json)
+                            prediction["casino_line"] = casino_line
+                            prediction["casino_comparison"] = calculate_casino_comparison(prediction, casino_line)
+                        except:
+                            pass
+                    
+                    game_data = {**game_info, **prediction}
+                    games_with_predictions.append(game_data)
+                except Exception as e:
+                    logger.error(f"Error parsing cached prediction: {e}")
+                    continue
+            
+            if games_with_predictions:
+                return APIResponse(
+                    success=True,
+                    message=f"Se encontraron {len(games_with_predictions)} partidos (desde caché)",
+                    data={
+                        "games": games_with_predictions,
+                        "count": len(games_with_predictions),
+                        "date": today.isoformat(),
+                        "source": "cache"
+                    }
+                )
+        
+        logger.info("No cache available, generating predictions...")
+        
         games = await fetch_today_games()
         
         if not games:
@@ -337,6 +387,23 @@ async def get_today_games(
             except Exception as db_err:
                 logger.warning(f"No se pudo guardar predicción: {db_err}")
             
+            try:
+                db_gen = get_db()
+                db = next(db_gen)
+                cache_data = {
+                    "game_id": game_info["game_id"],
+                    "game_date": game_date,
+                    "home_team": game_info["home_team"],
+                    "away_team": game_info["away_team"],
+                    "game_info_json": json.dumps(game_info, default=str),
+                    "prediction_json": json.dumps(prediction, default=str),
+                    "casino_line_json": json.dumps(prediction.get("casino_line", {}), default=str)
+                }
+                save_daily_prediction_cache(db, cache_data)
+                db.close()
+            except Exception as cache_err:
+                logger.warning(f"No se pudo guardar en caché: {cache_err}")
+            
             games_with_predictions.append(game_data)
         
         return APIResponse(
@@ -346,7 +413,8 @@ async def get_today_games(
                 "games": games_with_predictions,
                 "count": len(games_with_predictions),
                 "date": date.today().isoformat(),
-                "casino_lines_status": "loaded" if casino_lines else "unavailable"
+                "casino_lines_status": "loaded" if casino_lines else "unavailable",
+                "source": "api"
             }
         )
         

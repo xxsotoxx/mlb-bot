@@ -259,6 +259,24 @@ class MLFeatureStoreDB(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class DailyPredictionCache(Base):
+    """Modelo para almacenar predicciones diarias en caché"""
+    __tablename__ = "daily_predictions_cache"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    game_id = Column(Integer, unique=True, index=True)
+    game_date = Column(Date, index=True)
+    
+    home_team = Column(String(100))
+    away_team = Column(String(100))
+    
+    game_info_json = Column(String(1000))
+    prediction_json = Column(String(4000))
+    casino_line_json = Column(String(2000))
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 def init_db():
     """Inicializa la base de datos"""
     Base.metadata.create_all(bind=engine)
@@ -671,3 +689,54 @@ def delete_user(db, user_id: int):
 def count_users(db):
     """Cuenta el número de usuarios activos"""
     return db.query(UserDB).filter(UserDB.is_active == True).count()
+
+
+# ==================== DAILY PREDICTION CACHE FUNCTIONS ====================
+
+def save_daily_prediction_cache(db, cache_data: dict):
+    """Guarda una predicción en el caché diario"""
+    existing = db.query(DailyPredictionCache).filter(
+        DailyPredictionCache.game_id == cache_data.get("game_id")
+    ).first()
+    
+    if existing:
+        for key, value in cache_data.items():
+            if value is not None:
+                setattr(existing, key, value)
+        db.commit()
+        return existing
+    else:
+        cache = DailyPredictionCache(**cache_data)
+        db.add(cache)
+        db.commit()
+        return cache
+
+
+def get_daily_predictions_cache(db, target_date: date = None):
+    """Obtiene las predicciones en caché para una fecha"""
+    if target_date is None:
+        target_date = date.today()
+    
+    return db.query(DailyPredictionCache).filter(
+        DailyPredictionCache.game_date == target_date
+    ).order_by(DailyPredictionCache.game_id).all()
+
+
+def get_daily_prediction_by_game(db, game_id: int):
+    """Obtiene una predicción en caché por game_id"""
+    return db.query(DailyPredictionCache).filter(
+        DailyPredictionCache.game_id == game_id
+    ).first()
+
+
+def delete_old_daily_predictions(db, days: int = 1):
+    """Elimina predicciones en caché mayores a N días"""
+    from datetime import timedelta
+    cutoff_date = date.today() - timedelta(days=days)
+    
+    deleted = db.query(DailyPredictionCache).filter(
+        DailyPredictionCache.game_date < cutoff_date
+    ).delete()
+    
+    db.commit()
+    return deleted

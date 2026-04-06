@@ -298,9 +298,10 @@ class MLBAPIClient:
         return await self._get(f"/v1/teams/{team_id}/roster", {"rosterType": "40Man"})
     
     async def get_recent_games(self, team_id: int, games: int = 15) -> List[Dict]:
-        """Obtiene los últimos N partidos de un equipo"""
+        """Obtiene los últimos N partidos del equipo en temporada 2026"""
+        current_year = 2026
+        start_date = f"04/01/{current_year}"
         end_date = datetime.now().strftime("%m/%d/%Y")
-        start_date = (datetime.now() - timedelta(days=30)).strftime("%m/%d/%Y")
         
         params = {
             "sportId": 1,
@@ -310,7 +311,7 @@ class MLBAPIClient:
             "hydrate": "team,linescore"
         }
         
-        logger.info(f"Fetching recent games for team {team_id} from {start_date} to {end_date}")
+        logger.info(f"Fetching 2026 season games for team {team_id} from {start_date} to {end_date}")
         
         data = await self._get("/v1/schedule", params)
         if not data or not isinstance(data, dict):

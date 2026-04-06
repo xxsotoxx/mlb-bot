@@ -2,8 +2,11 @@
 Scheduler para ejecutar jobs automáticos
 - Job de 6 AM: Obtener resultados de ayer y calcular precisión
 - Job de 6:30 AM: Entrenar modelos ML
+- Job de 8 AM: Generar predicciones diarias y guardar en caché
+- Job de 12 AM: Limpiar predicciones antiguas
 """
 import asyncio
+import json
 import logging
 from datetime import datetime, date, timedelta
 from typing import Optional
@@ -12,7 +15,14 @@ from apscheduler.triggers.cron import CronTrigger
 
 from .results_fetcher import results_fetcher
 from .accuracy_calculator import accuracy_calculator
-from ..models.database import get_db, get_prediction_by_game, update_prediction_result, save_prediction, save_game_result
+from .mlb_api import fetch_today_games, parse_game_info
+from .advanced_predictor import advanced_predictor
+from .casino_lines import casino_scraper, get_default_lines
+from ..models.database import (
+    get_db, get_prediction_by_game, update_prediction_result, 
+    save_prediction, save_game_result, save_daily_prediction_cache,
+    delete_old_daily_predictions
+)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -200,6 +210,126 @@ async def fetch_last_7_days():
         logger.error(f"Error en job fetch_last_7_days: {e}", exc_info=True)
 
 
+async def generate_daily_predictions():
+    """
+    Job que se ejecuta a las 8 AM diariamente
+    1. Obtiene los partidos del día
+    2. Genera predicciones con sabermetría
+    3. Guarda en caché para evitar llamadas API repetidas
+    """
+    logger.info("=" * 50)
+    logger.info("INICIANDO JOB: Generate Daily Predictions (8 AM)")
+    logger.info(f"Fecha de ejecución: {datetime.now()}")
+    logger.info("=" * 50)
+    
+    today = date.today()
+    
+    try:
+        games = await fetch_today_games()
+        
+        if not games:
+            logger.warning("No hay partidos programados para hoy")
+            return
+        
+        logger.info(f"Encontrados {len(games)} partidos para hoy")
+        
+        casino_lines = None
+        try:
+            casino_lines = await casino_scraper.get_casino_lines()
+        except Exception as e:
+            logger.warning(f"No se pudieron obtener líneas de casino: {e}")
+        
+        saved_count = 0
+        
+        for game in games:
+            game_info = parse_game_info(game)
+            
+            try:
+                prediction = await advanced_predictor.generate_prediction(game_info)
+            except Exception as pred_error:
+                logger.error(f"Error generando predicción para game {game_info.get('game_id')}: {pred_error}")
+                prediction = {
+                    "predicted_home_score": 4.0,
+                    "predicted_away_score": 4.0,
+                    "predicted_total": 8.0,
+                    "predicted_favorite": game_info.get("home_team", "Home"),
+                    "home_win_probability": 50.0,
+                    "over_probability": 50.0,
+                    "over_line": 8.0,
+                    "confidence": "low",
+                    "park_factor": 1.0
+                }
+            
+            if casino_lines:
+                try:
+                    casino_line = casino_scraper.get_best_line(
+                        prediction.get("home_team", game_info.get("home_team")),
+                        prediction.get("away_team", game_info.get("away_team")),
+                        casino_lines
+                    )
+                    if casino_line:
+                        prediction["casino_line"] = casino_line
+                except Exception as e:
+                    logger.warning(f"Error obteniendo línea de casino: {e}")
+            
+            game_date = today
+            if game_info.get("game_date"):
+                try:
+                    dt = datetime.fromisoformat(game_info["game_date"].replace("Z", "+00:00"))
+                    game_date = dt.astimezone().date()
+                except:
+                    pass
+            
+            cache_data = {
+                "game_id": game_info.get("game_id", 0),
+                "game_date": game_date,
+                "home_team": game_info.get("home_team", ""),
+                "away_team": game_info.get("away_team", ""),
+                "game_info_json": json.dumps(game_info, default=str),
+                "prediction_json": json.dumps(prediction, default=str),
+                "casino_line_json": json.dumps(prediction.get("casino_line", {}), default=str)
+            }
+            
+            db_gen = get_db()
+            db = next(db_gen)
+            try:
+                save_daily_prediction_cache(db, cache_data)
+                saved_count += 1
+                logger.info(f"  Predicción guardada: {game_info.get('home_team')} vs {game_info.get('away_team')}")
+            except Exception as e:
+                logger.error(f"Error guardando predicción en caché: {e}")
+            finally:
+                db.close()
+        
+        logger.info(f"Job completado. {saved_count} predicciones guardadas en caché.")
+        
+    except Exception as e:
+        logger.error(f"Error en job generate_daily_predictions: {e}", exc_info=True)
+
+
+async def cleanup_old_predictions():
+    """
+    Job que se ejecuta a medianoche (12 AM)
+    Elimina predicciones en caché mayores a 1 día
+    """
+    logger.info("=" * 50)
+    logger.info("INICIANDO JOB: Cleanup Old Predictions (12 AM)")
+    logger.info("=" * 50)
+    
+    try:
+        db_gen = get_db()
+        db = next(db_gen)
+        
+        deleted = delete_old_daily_predictions(db, days=1)
+        
+        logger.info(f"Se eliminaron {deleted} predicciones antiguas del caché.")
+        
+        db.close()
+        
+    except Exception as e:
+        logger.error(f"Error en job cleanup_old_predictions: {e}", exc_info=True)
+
+
 def start_scheduler():
     """Inicia el scheduler con los jobs configurados"""
     global scheduler
@@ -239,10 +369,29 @@ def start_scheduler():
     except Exception as e:
         logger.warning(f"ML training job not added: {e}")
     
+    scheduler.add_job(
+        generate_daily_predictions,
+        CronTrigger(hour=8, minute=0),
+        id="generate_daily_predictions",
+        name="Generate Daily Predictions (8 AM)",
+        replace_existing=True
+    )
+    
+    scheduler.add_job(
+        cleanup_old_predictions,
+        CronTrigger(hour=0, minute=5),
+        id="cleanup_old_predictions",
+        name="Cleanup Old Predictions (12:05 AM)",
+        replace_existing=True
+    )
+    
     scheduler.start()
     logger.info("Scheduler iniciado correctamente")
     logger.info("Jobs programados:")
     logger.info("  - fetch_yesterday_results: Diariamente a las 6:00 AM")
+    logger.info("  - train_ml_models: Diariamente a las 6:30 AM")
+    logger.info("  - generate_daily_predictions: Diariamente a las 8:00 AM")
+    logger.info("  - cleanup_old_predictions: Diariamente a las 12:05 AM")
     logger.info("  - fetch_last_7_days: Lunes a las 7:00 AM")
     
     return scheduler
