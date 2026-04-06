@@ -37,14 +37,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Add Cookie middleware for session management
-from starlette.middleware.cookies import CookieMiddleware
-app.add_middleware(CookieMiddleware)
-
-# Add Cookie middleware for session management
-from starlette.middleware.cookies import CookieMiddleware
-app.add_middleware(CookieMiddleware)
-
 app.add_middleware(AuthMiddleware)
 
 app.include_router(auth_router)
