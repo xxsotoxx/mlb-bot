@@ -52,21 +52,21 @@ fi
 
 log_info "Cambios obtenidos exitosamente"
 
-# Reconstruir imagen
-log_info "Reconstruyendo imagen Docker..."
-docker build -t mlb-bot:latest .
+# Detener contenedores anteriores
+log_info "Deteniendo contenedores anteriores..."
+docker-compose down
 
-# Actualizar el stack
-log_info "Actualizando stack..."
-docker stack deploy -c docker-compose.yml $PROJECT_NAME
+# Reconstruir y iniciar
+log_info "Reconstruyendo imagen y iniciando servicios..."
+docker-compose up -d --build
 
-# Esperar a que se actualicen
-log_info "Esperando actualización..."
-sleep 10
+# Esperar a que arranquen
+log_info "Esperando a que arranquen los servicios..."
+sleep 15
 
 # Ver logs
 log_info "Logs recientes del MLB Bot:"
-docker service logs ${PROJECT_NAME}_mlb-bot --tail 15
+docker logs mlb-bot_mlb-bot_1 --tail 20 2>&1 || docker service logs ${PROJECT_NAME}_mlb-bot --tail 20
 
 echo ""
 log_info "=============================================="
@@ -74,5 +74,5 @@ log_info "  Update completado!"
 log_info "=============================================="
 echo ""
 echo "Comandos útiles:"
-echo "  Ver logs: docker service logs ${PROJECT_NAME}_mlb-bot -f"
+echo "  Ver logs: docker logs mlb-bot_mlb-bot_1 -f"
 echo "  Ver estado: ./status.sh"
