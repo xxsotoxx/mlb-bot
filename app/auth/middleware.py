@@ -13,7 +13,9 @@ from app.models.database import get_db, get_user_by_username
 logger = logging.getLogger(__name__)
 
 PUBLIC_PATHS = [
+    "/",
     "/login",
+    "/dashboard",
     "/api/auth/login",
     "/api/auth/set-cookie",
     "/api/auth/setup",
@@ -77,8 +79,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
             next_param = urllib.parse.quote(path, safe='')
             return RedirectResponse(url=f"/login?next={next_param}")
         
-        # For API paths, ensure we have the Authorization header
+        # For API paths, ensure we have the Authorization header or valid cookie
         if path.startswith("/api/"):
+            # Check if we have valid auth (from cookie or header)
             if not auth_header:
                 return JSONResponse(
                     status_code=status.HTTP_401_UNAUTHORIZED,
@@ -86,7 +89,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
                     headers={"WWW-Authenticate": "Bearer"}
                 )
             
-            if not auth_header.startswith("Bearer "):
+            # If using header (not cookie), ensure Bearer format
+            auth_cookie = request.cookies.get("Authorization")
+            if not auth_cookie and not auth_header.startswith("Bearer "):
                 return JSONResponse(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Invalid authorization header format",

@@ -19,16 +19,29 @@ class MLBAPIClient:
     
     def __init__(self):
         self.base_url = BASE_URL
-        self.timeout = 30.0
+        self.timeout = 60.0
     
     async def _get(self, endpoint: str, params: dict = None) -> Optional[Dict]:
         """Método interno para hacer requests GET"""
         url = f"{self.base_url}{endpoint}"
+        logger.info(f"MLB API Request: {url}")
+        logger.info(f"MLB API Params: {params}")
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
                 response = await client.get(url, params=params)
+                logger.info(f"MLB API Response Status: {response.status_code}")
                 response.raise_for_status()
-                return response.json()
+                data = response.json()
+                logger.info(f"MLB API Response Keys: {data.keys() if data else 'None'}")
+                if data and "dates" in data:
+                    logger.info(f"MLB API Total dates: {len(data.get('dates', []))}")
+                    if data.get('dates'):
+                        for d in data['dates']:
+                            logger.info(f"MLB API Date: {d.get('date')}, Games: {d.get('totalGames', 0)}")
+                return data
+        except httpx.TimeoutException as e:
+            logger.error(f"Timeout en {url}: {e}")
+            return None
         except httpx.HTTPError as e:
             logger.error(f"HTTP Error en {url}: {e}")
             return None
@@ -41,6 +54,8 @@ class MLBAPIClient:
         if date_str is None:
             date_str = datetime.now().strftime("%m/%d/%Y")
         
+        logger.info(f"Fetching schedule for date: {date_str}")
+        
         params = {
             "sportId": sport_id,
             "date": date_str,
@@ -48,13 +63,18 @@ class MLBAPIClient:
         }
         
         data = await self._get("/v1/schedule", params)
+        logger.info(f"get_schedule returned data: {bool(data)}")
+        
         if not data or "dates" not in data or not data["dates"]:
+            logger.warning(f"No games found for date {date_str}. Data: {data}")
             return []
         
         games = []
         for d in data["dates"]:
             for game in d.get("games", []):
                 games.append(game)
+        
+        logger.info(f"Returning {len(games)} games for {date_str}")
         return games
     
     async def get_game_boxscore(self, game_pk: int) -> Optional[Dict]:

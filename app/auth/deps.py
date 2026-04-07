@@ -1,7 +1,7 @@
 """
 Dependencies for authentication (get_current_user, require_admin)
 """
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional
 
@@ -19,10 +19,15 @@ class TokenData:
 
 
 async def get_current_user(
+    request: Request = None,
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db = Depends(get_db)
 ) -> UserDB:
     """Dependency to get current authenticated user"""
+    
+    # First check if user was already set by middleware
+    if request and hasattr(request.state, "user") and request.state.user:
+        return request.state.user
     
     token = credentials.credentials
     payload = verify_token(token)
